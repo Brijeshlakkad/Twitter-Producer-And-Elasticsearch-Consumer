@@ -24,6 +24,8 @@ public class TwitterProducer {
     private final String token = "";
     private final String secret = "";
 
+    List<String> terms = Lists.newArrayList("kafka");
+
     Logger logger = LoggerFactory.getLogger(TwitterProducer.class.getName());
 
     public TwitterProducer() {
@@ -44,6 +46,17 @@ public class TwitterProducer {
         hosebirdClient.connect();
 
         // create a kafka producer
+        KafkaProducer<String, String> producer = createKafkaProducer();
+
+        // add a shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(()-> {
+            logger.info("stopping application...");
+            logger.info("shutting down client from twitter...");
+            hosebirdClient.stop();
+            logger.info("closing producer...");
+            producer.close();
+            logger.info("done!");
+        }));
 
         // loop to send tweets to kafka
         // on a different thread, or multiple different threads....
@@ -57,7 +70,11 @@ public class TwitterProducer {
             }
             if (msg != null) {
                 logger.info(msg);
-
+                producer.send(new ProducerRecord<>("twitter_tweets", null, msg), (recordMetadata, e) -> {
+                    if (e != null) {
+                        logger.error("Something bad happened", e);
+                    }
+                });
             }
         }
         logger.info("End of application");
@@ -71,7 +88,6 @@ public class TwitterProducer {
         StatusesFilterEndpoint hosebirdEndpoint = new StatusesFilterEndpoint();
 
         // Optional: set up some followings and track terms
-        List<String> terms = Lists.newArrayList("bitcoin");
         hosebirdEndpoint.trackTerms(terms);
 
         // These secrets should be read from a config file
@@ -89,4 +105,16 @@ public class TwitterProducer {
         return builder.build();
     }
 
+    public KafkaProducer<String, String> createKafkaProducer() {
+        String bootstrapServers = "127.0.0.1:9092";
+
+        // create Producer properties
+        Properties properties = new Properties();
+        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+
+        // create the producer
+        return new KafkaProducer<>(properties);
+    }
 }
