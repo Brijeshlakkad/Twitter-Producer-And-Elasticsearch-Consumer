@@ -1,4 +1,4 @@
-package org.kafkatwitterprudcer.brijeshlakkad;
+package org.kafkatwitter.brijeshlakkad;
 
 import com.google.common.collect.Lists;
 import com.twitter.hbc.ClientBuilder;
