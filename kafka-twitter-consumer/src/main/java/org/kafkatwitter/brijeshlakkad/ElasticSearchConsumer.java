@@ -12,8 +12,9 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
@@ -101,7 +102,15 @@ public class ElasticSearchConsumer {
         while (true) {
             ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100)); // new in Kafka 2.0.0
 
-            logger.info("Received " + records.count() + " records");
+            Integer recordCount = records.count();
+            logger.info("Received " + recordCount + " records");
+
+            if (recordCount <= 0) {
+                continue;
+            }
+
+            BulkRequest bulkRequest = new BulkRequest();
+
             for (ConsumerRecord<String, String> record : records) {
                 // 2 strategies
                 // kafka generic ID
@@ -117,10 +126,7 @@ public class ElasticSearchConsumer {
                         id // this is to make our consumer idempotent
                 ).source(record.value(), XContentType.JSON);
 
-                IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
-                // String id = indexResponse.getId();
-
-                logger.info(id);
+                bulkRequest.add(indexRequest); // we add to our bulk request (takes no time)
 
                 try {
                     Thread.sleep(10); // introduce a small deplay
@@ -128,6 +134,8 @@ public class ElasticSearchConsumer {
                     e.printStackTrace();
                 }
             }
+
+            BulkResponse bulkResponse = client.bulk(bulkRequest, RequestOptions.DEFAULT);
 
             logger.info("Committing offsets...");
             consumer.commitSync();
