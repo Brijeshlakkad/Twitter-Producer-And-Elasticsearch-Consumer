@@ -117,16 +117,20 @@ public class ElasticSearchConsumer {
                 // String id = record.topic() + "_" + record.partition() + "_" + record.offset();
 
                 // Twitter feed specific id
-                String id = extractIdFromTweet(record.value());
+                try {
+                    String id = extractIdFromTweet(record.value());
 
-                // where we insert data into ElasticSearch
-                IndexRequest indexRequest = new IndexRequest(
-                        "twitter",
-                        "tweets",
-                        id // this is to make our consumer idempotent
-                ).source(record.value(), XContentType.JSON);
+                    // where we insert data into ElasticSearch
+                    IndexRequest indexRequest = new IndexRequest(
+                            "twitter",
+                            "tweets",
+                            id // this is to make our consumer idempotent
+                    ).source(record.value(), XContentType.JSON);
 
-                bulkRequest.add(indexRequest); // we add to our bulk request (takes no time)
+                    bulkRequest.add(indexRequest); // we add to our bulk request (takes no time)
+                } catch (NullPointerException e) {
+                    logger.warn("skipping bad data: " + record.value());
+                }
 
                 try {
                     Thread.sleep(10); // introduce a small deplay
